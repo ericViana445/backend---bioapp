@@ -1,16 +1,10 @@
-import { Router } from "express";
+// src/routes/auth.routes.ts
+import { Router } from 'express';
+import { register, login } from '../controllers/auth.controller';
 
-const authRoutes = Router();
+const router = Router();
 
-/**
- * Exemplo de rota
- */
-authRoutes.post("/login", (req, res) => {
-  return res.json({ message: "Login route working" });
-});
+router.post('/register', register);
+router.post('/login', login);
 
-authRoutes.post("/register", (req, res) => {
-  return res.json({ message: "Register route working" });
-});
-
-export default authRoutes;
+export default router;
