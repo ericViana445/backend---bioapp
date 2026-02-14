@@ -1,9 +1,9 @@
-import { Router } from "express";
-import { analyzeText } from "../controllers/ai.controller";
+import { Router } from 'express';
 
 const router = Router();
 
-// POST /ai/analyze
-router.post("/analyze", analyzeText);
+router.post('/analyze', (_req, res) => {
+  res.json({ message: 'IA em construção 🤖' });
+});
 
 export default router;
