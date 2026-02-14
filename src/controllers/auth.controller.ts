@@ -4,6 +4,70 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { db } from '../db';
 import { env } from '../config/env';
+import { OAuth2Client } from 'google-auth-library';
+
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+export const googleAuth = async (req: Request, res: Response) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    return res.status(400).json({ error: 'Token não fornecido.' });
+  }
+
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload) {
+      return res.status(400).json({ error: 'Token inválido.' });
+    }
+
+    const { email, name } = payload;
+
+    const database = await db;
+
+    let user = await database.get(
+      'SELECT * FROM users WHERE email = ?',
+      email
+    );
+
+    if (!user) {
+      await database.run(
+        'INSERT INTO users (name, email, password, dob) VALUES (?, ?, ?, ?)',
+        name,
+        email,
+        '',
+        ''
+      );
+
+      user = await database.get(
+        'SELECT * FROM users WHERE email = ?',
+        email
+      );
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      env.jwtSecret,
+      { expiresIn: '1h' }
+    );
+
+    return res.status(200).json({
+      token,
+      name: user.name,
+      email: user.email,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(401).json({ error: 'Token inválido.' });
+  }
+};
 
 // REGISTRO
 export const register = async (req: Request, res: Response) => {
