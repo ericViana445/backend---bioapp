@@ -138,22 +138,36 @@ export const login = async (req: Request, res: Response) => {
   try {
     const database = await db;
 
+    // 🔎 Procura usuário pelo email (independente do provider)
     const user = await database.get(
-      'SELECT * FROM users WHERE email = ? AND provider = ?',
-      email,
-      'local'
+      'SELECT * FROM users WHERE email = ?',
+      email
     );
 
+    // 🔴 Email não existe
     if (!user) {
-      return res.status(400).json({ error: 'Email ou senha incorretos.' });
+      return res.status(400).json({
+        error: 'Email não cadastrado. Por favor, cadastre-se.'
+      });
     }
 
+    // 🔴 Usuário é Google tentando login com senha
+    if (user.provider !== 'local') {
+      return res.status(400).json({
+        error: 'Este email foi cadastrado com Google. Faça login com Google.'
+      });
+    }
+
+    // 🔴 Senha incorreta
     const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
-      return res.status(400).json({ error: 'Email ou senha incorretos.' });
+      return res.status(400).json({
+        error: 'Senha incorreta.'
+      });
     }
 
+    // ✅ Gera token
     const token = jwt.sign(
       { id: user.id, email: user.email },
       env.jwtSecret,
@@ -174,5 +188,30 @@ export const login = async (req: Request, res: Response) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Erro interno do servidor.' });
+  }
+};
+
+// Endpoint para completar perfil (ex: adicionar data de nascimento)
+
+export const updateDob = async (req: Request, res: Response) => {
+  const { email, dob } = req.body;
+
+  if (!email || !dob) {
+    return res.status(400).json({ error: "Dados inválidos." });
+  }
+
+  try {
+    const database = await db;
+
+    await database.run(
+      `UPDATE users SET dob = ? WHERE email = ?`,
+      dob,
+      email
+    );
+
+    return res.status(200).json({ message: "DOB atualizado." });
+
+  } catch (error) {
+    return res.status(500).json({ error: "Erro ao atualizar." });
   }
 };
