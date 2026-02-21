@@ -30,8 +30,10 @@ export const initDB = async () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      dob TEXT NOT NULL
+      password TEXT,
+      dob TEXT,
+      provider TEXT NOT NULL,
+      google_id TEXT
     )
   `);
   console.log('✅ Banco de dados inicializado');

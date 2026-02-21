@@ -12,6 +12,6 @@ initDB();
 // Rotas
 app.use('/auth', authRoutes);
 
-app.listen(env.port, () => {
-  console.log(`🔥 Server running on http://localhost:${env.port}`);
+app.listen(env.port, '0.0.0.0', () => {
+  console.log(`🔥 Server running on http://192.168.1.9:${env.port}`);
 });
