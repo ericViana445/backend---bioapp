@@ -215,3 +215,32 @@ export const updateDob = async (req: Request, res: Response) => {
     return res.status(500).json({ error: "Erro ao atualizar." });
   }
 };
+
+//updade profile (name, dob) - opcional para ambos os tipos de usuário
+export const updateUser = async (req: Request, res: Response) => {
+  try {
+    const database = await db;
+
+    const { id } = req.params;
+    const { name, email, dob } = req.body;
+
+    await database.run(
+      `UPDATE users SET name = ?, email = ?, dob = ? WHERE id = ?`,
+      name,
+      email,
+      dob,
+      id
+    );
+
+    const updatedUser = await database.get(
+      `SELECT id, name, email, dob, provider FROM users WHERE id = ?`,
+      id
+    );
+
+    return res.json(updatedUser);
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Erro ao atualizar usuário' });
+  }
+};
