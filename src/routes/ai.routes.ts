@@ -1,9 +1,25 @@
-import { Router } from 'express';
+import { Request, Response } from 'express';
+import fs from 'fs';
 
-const router = Router();
+const pdfParse = require('pdf-parse');
 
-router.post('/analyze', (_req, res) => {
-  res.json({ message: 'IA em construção 🤖' });
-});
+export const uploadPDF = async (req: Request, res: Response) => {
+  try {
+    const file = (req as any).file; // 🔥 solução aqui
 
-export default router;
+    if (!file) {
+      return res.status(400).json({ error: 'Arquivo não enviado' });
+    }
+
+    const dataBuffer = fs.readFileSync(file.path);
+    const pdfData = await pdfParse(dataBuffer);
+
+    const text = pdfData.text;
+
+    return res.json({ text });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: 'Erro ao processar PDF' });
+  }
+};
