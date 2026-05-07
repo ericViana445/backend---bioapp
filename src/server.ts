@@ -4,6 +4,7 @@ import { initDB } from './db';
 import authRoutes from './routes/auth.routes';
 import { env } from './config/env';
 import pdfRoutes from './routes/pdf.routes';
+import aiRoutes from './routes/ai.routes';
 
 const app = express();
 app.use(express.json());
@@ -13,6 +14,7 @@ initDB();
 app.use('/auth', authRoutes);
 app.use('/users', authRoutes);
 app.use('/pdf', pdfRoutes);
+app.use('/ai', aiRoutes);
 
 app.get('/', (req, res) => {
   res.send('Backend funcionando 🚀');

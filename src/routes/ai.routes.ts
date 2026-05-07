@@ -1,7 +1,14 @@
-import { Request, Response } from 'express';
+import { Request, Response, Router } from 'express';
 import fs from 'fs';
+import { analyzeManualExam } from '../controllers/ai.controller';
 
 const pdfParse = require('pdf-parse');
+
+const router = Router();
+
+router.post('/analyze-manual', analyzeManualExam);
+
+export default router;
 
 export const uploadPDF = async (req: Request, res: Response) => {
   try {
@@ -22,4 +29,5 @@ export const uploadPDF = async (req: Request, res: Response) => {
     console.error(error);
     return res.status(500).json({ error: 'Erro ao processar PDF' });
   }
+  
 };
