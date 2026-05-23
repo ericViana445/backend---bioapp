@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 
-const N8N_WEBHOOK_URL = 'http://localhost:5678/webhook-test/hemograma-analisar';
+import { aiRepository } from '../db';
+import { analyzeExamWithGemini } from '../services/gemini.service';
 
 export const analyzeManualExam = async (req: Request, res: Response) => {
   try {
@@ -13,47 +14,41 @@ export const analyzeManualExam = async (req: Request, res: Response) => {
       hcm,
       chcm,
       rdw,
+      userId,
     } = req.body;
 
     const manualText = `
       Exame preenchido manualmente.
       Data de nascimento: ${birthDate}
       Hemoglobina: ${hemoglobina} g/dL
-      Hematócrito: ${hematocrito} %
-      RBC: ${rbc} milhões/µL
+      Hematocrito: ${hematocrito} %
+      RBC: ${rbc} milhoes/uL
       VCM: ${vcm} fL
       HCM: ${hcm} pg
       CHCM: ${chcm} g/dL
       RDW: ${rdw} %
     `;
 
-    const n8nResponse = await fetch(N8N_WEBHOOK_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        manualText,
-        source: 'bioapp',
-        examType: 'hemograma',
-      }),
+    const aiResult = await analyzeExamWithGemini({
+      source: 'manual',
+      examType: 'hemograma',
+      text: manualText,
     });
 
-    const aiResult = await n8nResponse.json();
-
-    if (!n8nResponse.ok) {
-      return res.status(500).json({
-        error: 'Erro ao analisar dados manuais com IA',
-        details: aiResult,
-      });
-    }
+    await aiRepository.createAnalysis({
+      user_id: userId ? Number(userId) : null,
+      source: 'manual',
+      exam_type: 'hemograma',
+      input_payload: req.body,
+      result_payload: aiResult,
+    });
 
     return res.json(aiResult);
   } catch (error) {
     console.error('Erro ao analisar exame manual:', error);
 
     return res.status(500).json({
-      error: 'Erro ao analisar exame manual',
+      error: error instanceof Error ? error.message : 'Erro ao analisar exame manual',
     });
   }
 };

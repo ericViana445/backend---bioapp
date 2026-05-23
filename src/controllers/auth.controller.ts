@@ -1,88 +1,82 @@
-// src/controllers/auth.controller.ts
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { db } from '../db';
-import { env } from '../config/env';
 import { OAuth2Client } from 'google-auth-library';
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+import { env } from '../config/env';
+import { usersRepository } from '../db';
 
-/* ======================================================
-   GOOGLE AUTH
-====================================================== */
+const googleClient = new OAuth2Client(env.googleClientId);
+
+function publicUser(user: {
+  id: number;
+  name: string;
+  email: string;
+  dob: string | null;
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    dob: user.dob,
+  };
+}
+
+function createAuthToken(user: { id: number; email: string }) {
+  return jwt.sign({ id: user.id, email: user.email }, env.jwtSecret, {
+    expiresIn: '1h',
+  });
+}
+
 export const googleAuth = async (req: Request, res: Response) => {
   const { idToken } = req.body;
 
   if (!idToken) {
-    return res.status(400).json({ error: 'Token não enviado.' });
+    return res.status(400).json({ error: 'Token nao enviado.' });
+  }
+
+  if (!env.googleClientId) {
+    return res.status(500).json({ error: 'Google Client ID nao configurado.' });
   }
 
   try {
     const ticket = await googleClient.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: env.googleClientId,
     });
 
     const payload = ticket.getPayload();
 
-    if (!payload) {
-      return res.status(400).json({ error: 'Token inválido.' });
+    if (!payload?.email) {
+      return res.status(400).json({ error: 'Token invalido.' });
     }
 
     const { email, name, sub } = payload;
 
-    const database = await db;
-
-    // Verifica se já existe
-    let user = await database.get(
-      'SELECT * FROM users WHERE email = ?',
-      email
-    );
+    let user = await usersRepository.findByEmail(email);
 
     if (!user) {
-      await database.run(
-        `INSERT INTO users (name, email, provider, google_id)
-         VALUES (?, ?, ?, ?)`,
-        name,
+      user = await usersRepository.create({
+        name: name || email,
         email,
-        'google',
-        sub
-      );
-
-      user = await database.get(
-        'SELECT * FROM users WHERE email = ?',
-        email
-      );
+        provider: 'google',
+        google_id: sub,
+      });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      env.jwtSecret,
-      { expiresIn: '1h' }
-    );
+    const token = createAuthToken(user);
 
     return res.status(200).json({
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        dob: user.dob,
-      },
+      user: publicUser(user),
       needsCompletion: !user.dob,
     });
-
   } catch (err) {
     console.error(err);
-    return res.status(401).json({ error: 'Falha na autenticação com Google.' });
+    return res.status(401).json({ error: 'Falha na autenticacao com Google.' });
   }
 };
 
-
-/* ======================================================
-   REGISTRO NORMAL
-====================================================== */
 export const register = async (req: Request, res: Response) => {
   const { name, email, password, dob } = req.body;
 
@@ -91,43 +85,31 @@ export const register = async (req: Request, res: Response) => {
   }
 
   try {
-    const database = await db;
-
-    const existingUser = await database.get(
-      'SELECT * FROM users WHERE email = ?',
-      email
-    );
+    const existingUser = await usersRepository.findByEmail(email);
 
     if (existingUser) {
-      return res.status(400).json({ error: 'Email já cadastrado.' });
+      return res.status(400).json({ error: 'Email ja cadastrado.' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    await database.run(
-      `INSERT INTO users (name, email, password, dob, provider)
-       VALUES (?, ?, ?, ?, ?)`,
+    await usersRepository.create({
       name,
       email,
-      hashedPassword,
+      password: hashedPassword,
       dob,
-      'local'
-    );
-
-    return res.status(201).json({
-      message: 'Cadastro realizado com sucesso!'
+      provider: 'local',
     });
 
+    return res.status(201).json({
+      message: 'Cadastro realizado com sucesso!',
+    });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 };
 
-
-/* ======================================================
-   LOGIN NORMAL
-====================================================== */
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -136,111 +118,76 @@ export const login = async (req: Request, res: Response) => {
   }
 
   try {
-    const database = await db;
+    const user = await usersRepository.findByEmail(email);
 
-    // 🔎 Procura usuário pelo email (independente do provider)
-    const user = await database.get(
-      'SELECT * FROM users WHERE email = ?',
-      email
-    );
-
-    // 🔴 Email não existe
     if (!user) {
       return res.status(400).json({
-        error: 'Email não cadastrado. Por favor, cadastre-se.'
+        error: 'Email nao cadastrado. Por favor, cadastre-se.',
       });
     }
 
-    // 🔴 Usuário é Google tentando login com senha
-    if (user.provider !== 'local') {
+    if (user.provider !== 'local' || !user.password) {
       return res.status(400).json({
-        error: 'Este email foi cadastrado com Google. Faça login com Google.'
+        error: 'Este email foi cadastrado com Google. Faca login com Google.',
       });
     }
 
-    // 🔴 Senha incorreta
     const validPassword = await bcrypt.compare(password, user.password);
 
     if (!validPassword) {
       return res.status(400).json({
-        error: 'Senha incorreta.'
+        error: 'Senha incorreta.',
       });
     }
 
-    // ✅ Gera token
-    const token = jwt.sign(
-      { id: user.id, email: user.email },
-      env.jwtSecret,
-      { expiresIn: '1h' }
-    );
+    const token = createAuthToken(user);
 
     return res.status(200).json({
       token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        dob: user.dob,
-      },
+      user: publicUser(user),
       needsCompletion: !user.dob,
     });
-
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Erro interno do servidor.' });
   }
 };
 
-// Endpoint para completar perfil (ex: adicionar data de nascimento)
-
 export const updateDob = async (req: Request, res: Response) => {
   const { email, dob } = req.body;
 
   if (!email || !dob) {
-    return res.status(400).json({ error: "Dados inválidos." });
+    return res.status(400).json({ error: 'Dados invalidos.' });
   }
 
   try {
-    const database = await db;
+    await usersRepository.updateDob(email, dob);
 
-    await database.run(
-      `UPDATE users SET dob = ? WHERE email = ?`,
-      dob,
-      email
-    );
-
-    return res.status(200).json({ message: "DOB atualizado." });
-
+    return res.status(200).json({ message: 'DOB atualizado.' });
   } catch (error) {
-    return res.status(500).json({ error: "Erro ao atualizar." });
+    console.error(error);
+    return res.status(500).json({ error: 'Erro ao atualizar.' });
   }
 };
 
-//updade profile (name, dob) - opcional para ambos os tipos de usuário
 export const updateUser = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, email, dob } = req.body;
+
+  if (!name || !email || !dob) {
+    return res.status(400).json({ error: 'Dados invalidos.' });
+  }
+
   try {
-    const database = await db;
-
-    const { id } = req.params;
-    const { name, email, dob } = req.body;
-
-    await database.run(
-      `UPDATE users SET name = ?, email = ?, dob = ? WHERE id = ?`,
+    const updatedUser = await usersRepository.updateProfile(Number(id), {
       name,
       email,
       dob,
-      id
-    );
-
-    const updatedUser = await database.get(
-      `SELECT id, name, email, dob, provider FROM users WHERE id = ?`,
-      id
-    );
+    });
 
     return res.json(updatedUser);
-
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ error: 'Erro ao atualizar usuário' });
+    return res.status(500).json({ error: 'Erro ao atualizar usuario' });
   }
 };

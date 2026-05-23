@@ -1,26 +1,23 @@
-import { Router, Request, Response } from "express";
-import nodemailer from "nodemailer";
-import { db } from "../db";
+import { Router, Request, Response } from 'express';
+import bcrypt from 'bcrypt';
+import nodemailer from 'nodemailer';
+
+import { env } from '../config/env';
+import { usersRepository } from '../db';
 
 const router = Router();
-
-/* ARMAZENA CÓDIGOS TEMPORARIAMENTE */
 const verificationCodes = new Map<string, string>();
 
-/* CRIA TRANSPORTER */
 function createTransporter() {
-  const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_PASS;
-
-  console.log("EMAIL_USER:", emailUser);
-  console.log("EMAIL_PASS existe:", !!emailPass);
+  const emailUser = env.email.user;
+  const emailPass = env.email.pass;
 
   if (!emailUser || !emailPass) {
-    throw new Error("EMAIL_USER ou EMAIL_PASS não carregados no .env");
+    throw new Error('EMAIL_USER ou EMAIL_PASS nao carregados no .env');
   }
 
   return nodemailer.createTransport({
-    service: "gmail",
+    service: 'gmail',
     auth: {
       user: emailUser,
       pass: emailPass,
@@ -28,41 +25,39 @@ function createTransporter() {
   });
 }
 
-
-/* ENVIAR CÓDIGO */
-router.post("/forgot-password", async (req: Request, res: Response) => {
+router.post('/forgot-password', async (req: Request, res: Response) => {
   try {
     const { email } = req.body;
 
     if (!email) {
       res.status(400).json({
-        error: "Email obrigatório",
+        error: 'Email obrigatorio',
       });
-
       return;
     }
 
-    /* GERA CÓDIGO DE 5 DÍGITOS */
-    const code = Math.floor(
-      10000 + Math.random() * 90000
-    ).toString();
+    const user = await usersRepository.findByEmail(email);
 
-    /* SALVA */
+    if (!user) {
+      res.status(404).json({
+        error: 'Usuario nao encontrado.',
+      });
+      return;
+    }
+
+    const code = Math.floor(10000 + Math.random() * 90000).toString();
     verificationCodes.set(email, code);
 
     const transporter = createTransporter();
 
-    /* ENVIA EMAIL */
     await transporter.sendMail({
-      from: process.env.EMAIL_USER,
+      from: env.email.user,
       to: email,
-      subject: "Código de recuperação",
+      subject: 'Codigo de recuperacao',
       html: `
         <div style="font-family: Arial; padding: 20px;">
-          <h2>Recuperação de senha</h2>
-
-          <p>Seu código de verificação é:</p>
-
+          <h2>Recuperacao de senha</h2>
+          <p>Seu codigo de verificacao e:</p>
           <div
             style="
               background: #2563EB;
@@ -77,10 +72,7 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
           >
             ${code}
           </div>
-
-          <p style="margin-top: 20px;">
-            O código expira em alguns minutos.
-          </p>
+          <p style="margin-top: 20px;">O codigo expira em alguns minutos.</p>
         </div>
       `,
     });
@@ -92,21 +84,19 @@ router.post("/forgot-password", async (req: Request, res: Response) => {
     console.log(error);
 
     res.status(500).json({
-      error: "Erro ao enviar código",
+      error: 'Erro ao enviar codigo',
     });
   }
 });
 
-/* VALIDAR CÓDIGO */
-router.post("/verify-code", async (req: Request, res: Response) => {
+router.post('/verify-code', async (req: Request, res: Response) => {
   try {
     const { email, code } = req.body;
 
     if (!email || !code) {
       res.status(400).json({
-        error: "Dados inválidos",
+        error: 'Dados invalidos',
       });
-
       return;
     }
 
@@ -114,13 +104,11 @@ router.post("/verify-code", async (req: Request, res: Response) => {
 
     if (savedCode !== code) {
       res.status(400).json({
-        error: "Código inválido",
+        error: 'Codigo invalido',
       });
-
       return;
     }
 
-    /* REMOVE APÓS VALIDAR */
     verificationCodes.delete(email);
 
     res.json({
@@ -130,48 +118,40 @@ router.post("/verify-code", async (req: Request, res: Response) => {
     console.log(error);
 
     res.status(500).json({
-      error: "Erro ao validar código",
+      error: 'Erro ao validar codigo',
     });
   }
 });
 
-router.post("/reset-password", async (req: Request, res: Response) => {
+router.post('/reset-password', async (req: Request, res: Response) => {
   try {
     const { email, newPassword } = req.body;
 
     if (!email || !newPassword) {
-      res.status(400).json({ error: "Dados incompletos." });
+      res.status(400).json({ error: 'Dados incompletos.' });
       return;
     }
 
-    const database = await db;
-
-    const user = await database.get(
-      "SELECT * FROM users WHERE email = ?",
-      [email]
-    );
+    const user = await usersRepository.findByEmail(email);
 
     if (!user) {
-      res.status(404).json({ error: "Usuário não encontrado." });
+      res.status(404).json({ error: 'Usuario nao encontrado.' });
       return;
     }
 
-    await database.run(
-      "UPDATE users SET password = ? WHERE email = ?",
-      [newPassword, email]
-    );
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await usersRepository.updatePassword(email, hashedPassword);
 
     res.json({ success: true });
   } catch (error) {
     console.log(error);
-    res.status(500).json({ error: "Erro ao redefinir senha." });
+    res.status(500).json({ error: 'Erro ao redefinir senha.' });
   }
 });
 
-/* TESTE */
-router.get("/forgot-password-test", (req: Request, res: Response) => {
+router.get('/forgot-password-test', (req: Request, res: Response) => {
   res.json({
-    message: "Rota forgot password funcionando",
+    message: 'Rota forgot password funcionando',
   });
 });
 

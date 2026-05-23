@@ -1,65 +1,93 @@
-import dotenv from "dotenv";
-import path from "path";
+import cors, { CorsOptions } from 'cors';
+import express from 'express';
+import os from 'os';
 
-dotenv.config({
-  path: path.resolve(__dirname, "../.env"),
-});
-console.log("CAMINHO ENV:", path.resolve(__dirname, "../.env"));
-console.log("EMAIL_USER TESTE:", process.env.EMAIL_USER);
-import express from "express";
-import os from "os";
-
-import { initDB } from "./db";
-import authRoutes from "./routes/auth.routes";
-import { env } from "./config/env";
-import pdfRoutes from "./routes/pdf.routes";
-import aiRoutes from "./routes/ai.routes";
-import forgotPasswordRoutes from "./routes/forgotPassword.routes";
+import { env } from './config/env';
+import { initDB } from './db';
+import aiRoutes from './routes/ai.routes';
+import authRoutes from './routes/auth.routes';
+import forgotPasswordRoutes from './routes/forgotPassword.routes';
+import pdfRoutes from './routes/pdf.routes';
 
 const app = express();
 
-app.use(express.json());
+const corsOptions: CorsOptions = {
+  origin(origin, callback) {
+    if (!origin || env.nodeEnv !== 'production') {
+      callback(null, true);
+      return;
+    }
 
-initDB();
+    if (env.frontendOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
 
-/* ROTAS */
-app.use("/auth", authRoutes);
-app.use("/auth", forgotPasswordRoutes);
+    callback(new Error('Origem nao permitida pelo CORS'));
+  },
+};
 
-app.use("/users", authRoutes);
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '2mb' }));
 
-app.use("/pdf", pdfRoutes);
-app.use("/ai", aiRoutes);
-
-console.log("✅ Rotas de recuperação carregadas");
-
-/* TESTE */
-app.get("/", (req, res) => {
-  res.send("Backend funcionando 🚀");
+initDB().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });
 
-/* PEGA IP LOCAL */
+app.get('/', (req, res) => {
+  res.send('Backend funcionando');
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    environment: env.nodeEnv,
+  });
+});
+
+app.use('/auth', authRoutes);
+app.use('/auth', forgotPasswordRoutes);
+app.use('/users', authRoutes);
+app.use('/pdf', pdfRoutes);
+app.use('/ai', aiRoutes);
+
 function getLocalIPv4() {
   const interfaces = os.networkInterfaces();
+  const wifiNames = ['Wi-Fi', 'Wireless', 'WLAN'];
 
   for (const name of Object.keys(interfaces)) {
+    const isWifi = wifiNames.some((wifiName) =>
+      name.toLowerCase().includes(wifiName.toLowerCase())
+    );
+
+    if (!isWifi) continue;
+
     for (const net of interfaces[name] ?? []) {
-      if (net.family === "IPv4" && !net.internal) {
+      if (net.family === 'IPv4' && !net.internal) {
         return net.address;
       }
     }
   }
 
-  return "localhost";
+  for (const name of Object.keys(interfaces)) {
+    for (const net of interfaces[name] ?? []) {
+      if (
+        net.family === 'IPv4' &&
+        !net.internal &&
+        !net.address.startsWith('192.168.137.')
+      ) {
+        return net.address;
+      }
+    }
+  }
+
+  return 'localhost';
 }
 
 const localIP = getLocalIPv4();
 
-/* START SERVER */
-app.listen(env.port, "0.0.0.0", () => {
-  console.log(`🔥 Server running locally: http://localhost:${env.port}`);
-  console.log(`🌐 Server running on network: http://${localIP}:${env.port}`);
-
-  console.log("EMAIL_USER:", process.env.EMAIL_USER);
-  console.log("EMAIL_PASS existe:", !!process.env.EMAIL_PASS);
+app.listen(env.port, '0.0.0.0', () => {
+  console.log(`Server running locally: http://localhost:${env.port}`);
+  console.log(`Server running on network: http://${localIP}:${env.port}`);
 });
