@@ -45,7 +45,7 @@ app.get('/health', (req, res) => {
     environment: env.nodeEnv,
   });
 });
-
+//teste
 app.use('/auth', authRoutes);
 app.use('/auth', forgotPasswordRoutes);
 app.use('/users', authRoutes);
