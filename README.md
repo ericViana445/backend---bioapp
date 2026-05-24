@@ -24,7 +24,7 @@ GOOGLE_CLIENT_ID=client_id_web_do_google
 GEMINI_API_KEY=sua_chave_do_google_ai_studio
 GEMINI_MODEL=gemini-2.5-flash
 AI_API_KEY=opcional_legado
-FRONTEND_URL=https://sua-url-do-app-ou-site
+FRONTEND_URL=app://bioapp
 EMAIL_USER=
 EMAIL_PASS=
 ```
@@ -79,10 +79,10 @@ Em producao, defina:
 
 ```bash
 NODE_ENV=production
-FRONTEND_URL=https://dominio-do-app-ou-site
+FRONTEND_URL=app://bioapp
 ```
 
-Para mais de uma origem CORS, separe por virgula em `FRONTEND_URL`.
+O CORS esta configurado para aceitar chamadas mobile sem `Origin` e tambem origens HTTP quando necessario. `FRONTEND_URL` fica apenas como referencia de configuracao.
 
 ## Checklist de publicacao
 

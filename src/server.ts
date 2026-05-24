@@ -13,17 +13,7 @@ const app = express();
 
 const corsOptions: CorsOptions = {
   origin(origin, callback) {
-    if (!origin || env.nodeEnv !== 'production') {
-      callback(null, true);
-      return;
-    }
-
-    if (env.frontendOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    callback(new Error('Origem nao permitida pelo CORS'));
+    callback(null, origin || true);
   },
 };
 
@@ -45,7 +35,7 @@ app.get('/health', (req, res) => {
     environment: env.nodeEnv,
   });
 });
-//teste
+
 app.use('/auth', authRoutes);
 app.use('/auth', forgotPasswordRoutes);
 app.use('/users', authRoutes);
