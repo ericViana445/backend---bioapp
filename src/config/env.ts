@@ -37,6 +37,42 @@ function parseOrigins(value?: string) {
     .filter(Boolean);
 }
 
+function normalizeSupabaseUrl(value: string) {
+  const trimmed = value.trim();
+
+  if (/^[a-z0-9-]{15,}$/i.test(trimmed) && !trimmed.includes('.')) {
+    return `https://${trimmed}.supabase.co`;
+  }
+
+  const parsed = new URL(trimmed);
+
+  if (
+    parsed.hostname === 'supabase.com' &&
+    parsed.pathname.includes('/dashboard/project/')
+  ) {
+    const projectRef = parsed.pathname.split('/dashboard/project/')[1]?.split('/')[0];
+
+    if (projectRef) {
+      return `https://${projectRef}.supabase.co`;
+    }
+  }
+
+  if (parsed.pathname === '/rest/v1' || parsed.pathname.startsWith('/rest/v1/')) {
+    parsed.pathname = '';
+  }
+
+  if (parsed.hostname.endsWith('.supabase.co')) {
+    parsed.pathname = '';
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().replace(/\/$/, '');
+  }
+
+  throw new Error(
+    'SUPABASE_URL invalida. Use a Project URL no formato https://SEU_PROJECT_REF.supabase.co'
+  );
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: Number(process.env.PORT) || 3333,
@@ -52,7 +88,7 @@ export const env = {
     pass: process.env.EMAIL_PASS,
   },
   supabase: {
-    url: process.env.SUPABASE_URL as string,
+    url: normalizeSupabaseUrl(process.env.SUPABASE_URL as string),
     serviceRoleKey: supabaseServerKey as string,
     anonKey: process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY,
     storageBucket: process.env.SUPABASE_STORAGE_BUCKET as string,

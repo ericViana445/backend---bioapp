@@ -16,7 +16,7 @@ Copie `.env.example` para `.env` e preencha os valores reais:
 PORT=3333
 NODE_ENV=development
 JWT_SECRET=uma_chave_forte
-SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_URL=https://seu-project-ref.supabase.co
 SUPABASE_SECRET_KEY=somente_no_backend
 SUPABASE_PUBLISHABLE_KEY=opcional_para_referencia
 SUPABASE_STORAGE_BUCKET=bioapp-pdfs
@@ -31,6 +31,8 @@ EMAIL_PASS=
 
 Nunca use `SUPABASE_SECRET_KEY` nem `SUPABASE_SERVICE_ROLE_KEY` no frontend. O app mobile deve consumir apenas a URL publica deste backend.
 Tambem nao coloque `GEMINI_API_KEY` no app mobile; a chamada ao Gemini e feita pelo backend.
+
+`SUPABASE_URL` precisa ser a Project URL base do Supabase, por exemplo `https://abcdefghijklmno.supabase.co`. Nao use a URL do dashboard nem uma URL terminada em `/rest/v1`.
 
 ## Criar Supabase
 
